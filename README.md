@@ -3,7 +3,7 @@
 AquaView is a **real-time groundwater monitoring application** that leverages **DWLR (Digital Water Level Recorder) data** to provide citizens and officials with transparent insights into water levels, water quality, and resource availability.  
 Built using **Flutter** with backend support from **Firebase** and APIs, AquaView aims to bring **data-driven decision making** to water management.
 
-<img width="442" height="762" alt="Image" src="https://github.com/user-attachments/assets/a78f8de6-48d0-4e42-b734-7a7c5bc2c718" /><img width="492" height="756" alt="Image" src="https://github.com/user-attachments/assets/3b564346-a4e6-4b17-a3b5-65ef8d3cecd7" />
+<img width="442" height="762" alt="Image" src="https://github.com/user-attachments/assets/a78f8de6-48d0-4e42-b734-7a7c5bc2c718" /><img width="425" height="761" alt="Image" src="https://github.com/user-attachments/assets/8999ef19-3352-4416-a254-4c81d78e049b" />
 ---
 
 ## 🚀 Features
