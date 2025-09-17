@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
+// import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../services/mock_data.dart';
 import '../../services/dwlr_service.dart';
+import '../welcome_screen.dart';
 
 class CitizenDashboard extends StatefulWidget {
   const CitizenDashboard({super.key});
@@ -53,9 +54,9 @@ class _CitizenDashboardState extends State<CitizenDashboard> {
       }
       if (permission == LocationPermission.deniedForever) {
         setState(() {
-          _locationError = 'Location permission permanently denied';
+      // const waterLevel = MockDataService.getWaterLevel;
         });
-        return;
+      // final waterSource = MockDataService.getWaterSource();
       }
 
       Position? chosen;
@@ -64,22 +65,11 @@ class _CitizenDashboardState extends State<CitizenDashboard> {
           desiredAccuracy: LocationAccuracy.bestForNavigation,
           timeLimit: const Duration(seconds: 10),
         );
-      } on TimeoutException {
-        if (!kIsWeb) {
-          try {
-            chosen = await Geolocator.getLastKnownPosition();
-          } catch (_) {
-            // ignore
-          }
-        }
-      } catch (_) {
-        if (!kIsWeb) {
-          try {
-            chosen = await Geolocator.getLastKnownPosition();
-          } catch (_) {
-            // ignore
-          }
-        }
+      } catch (e) {
+        setState(() {
+          _locationError = 'Unable to determine location: $e';
+        });
+        return;
       }
 
       if (chosen == null) {
@@ -135,6 +125,27 @@ class _CitizenDashboardState extends State<CitizenDashboard> {
     final waterSource = MockDataService.getWaterSource();
 
     return Scaffold(
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            const DrawerHeader(
+              decoration: BoxDecoration(color: Color(0xFF2196F3)),
+              child: Text('Menu', style: TextStyle(color: Colors.white, fontSize: 24)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.home),
+              title: const Text('Home'),
+              onTap: () {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+                  (route) => false,
+                );
+              },
+            ),
+          ],
+        ),
+      ),
       appBar: AppBar(
         leading: Builder(
           builder: (context) => IconButton(
@@ -713,7 +724,10 @@ class _CitizenDashboardState extends State<CitizenDashboard> {
       onTap: (index) {
         switch (index) {
           case 0:
-            Navigator.of(context).maybePop();
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+              (route) => false,
+            );
             break;
           case 1:
             _initLocation();

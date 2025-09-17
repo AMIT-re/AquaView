@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/mock_data.dart';
+import '../welcome_screen.dart';
 
 class IndustryDashboard extends StatelessWidget {
   const IndustryDashboard({super.key});
@@ -9,6 +10,27 @@ class IndustryDashboard extends StatelessWidget {
     final alerts = MockDataService.getIndustryAlerts();
 
     return Scaffold(
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            const DrawerHeader(
+              decoration: BoxDecoration(color: Color(0xFF2196F3)),
+              child: Text('Menu', style: TextStyle(color: Colors.white, fontSize: 24)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.home),
+              title: const Text('Home'),
+              onTap: () {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+                  (route) => false,
+                );
+              },
+            ),
+          ],
+        ),
+      ),
       appBar: AppBar(
         leading: Builder(
           builder: (context) => IconButton(
@@ -29,26 +51,21 @@ class IndustryDashboard extends StatelessWidget {
             _buildSectionTitle('Water Quality Overview'),
             const SizedBox(height: 16),
             _buildWaterQualityOverviewCard(),
-            
             const SizedBox(height: 24),
-            
             // Compliance Alerts
             _buildSectionTitle('Compliance Alerts'),
             const SizedBox(height: 16),
             _buildComplianceAlertsCard(alerts),
-            
             const SizedBox(height: 24),
-            
             // Certified Water Sources
             _buildSectionTitle('Certified Water Sources'),
             const SizedBox(height: 16),
             _buildCertifiedSourcesCard(),
-            
             const SizedBox(height: 24),
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
+      bottomNavigationBar: _buildBottomNavigationBar(context),
     );
   }
 
@@ -260,7 +277,7 @@ class IndustryDashboard extends StatelessWidget {
     );
   }
 
-  Widget _buildBottomNavigationBar() {
+  Widget _buildBottomNavigationBar(BuildContext context) {
     return BottomNavigationBar(
       backgroundColor: const Color(0xFF1E1E1E),
       selectedItemColor: const Color(0xFF2196F3),
@@ -282,7 +299,20 @@ class IndustryDashboard extends StatelessWidget {
       ],
       currentIndex: 1,
       onTap: (index) {
-        // Handle navigation
+        switch (index) {
+          case 0:
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+              (route) => false,
+            );
+            break;
+          case 1:
+            // Stay on dashboard
+            break;
+          case 2:
+            // Profile (not implemented)
+            break;
+        }
       },
     );
   }

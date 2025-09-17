@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/mock_data.dart';
+import '../welcome_screen.dart';
 
 class FarmerDashboard extends StatelessWidget {
   const FarmerDashboard({super.key});
@@ -10,6 +11,27 @@ class FarmerDashboard extends StatelessWidget {
     final seasonalForecast = MockDataService.getSeasonalForecast();
 
     return Scaffold(
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            const DrawerHeader(
+              decoration: BoxDecoration(color: Color(0xFF2196F3)),
+              child: Text('Menu', style: TextStyle(color: Colors.white, fontSize: 24)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.home),
+              title: const Text('Home'),
+              onTap: () {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+                  (route) => false,
+                );
+              },
+            ),
+          ],
+        ),
+      ),
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -26,26 +48,21 @@ class FarmerDashboard extends StatelessWidget {
             _buildSectionTitle('Water Quality Reports'),
             const SizedBox(height: 16),
             _buildReportsCard(),
-            
             const SizedBox(height: 24),
-            
             // Soil-Silt Compatibility
             _buildSectionTitle('Soil-Silt Compatibility'),
             const SizedBox(height: 16),
             _buildSoilCompatibilityCard(soilCompatibility),
-            
             const SizedBox(height: 24),
-            
             // Seasonal Forecast
             _buildSectionTitle('Seasonal Forecast'),
             const SizedBox(height: 16),
             _buildSeasonalForecastCard(seasonalForecast),
-            
             const SizedBox(height: 24),
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
+      bottomNavigationBar: _buildBottomNavigationBar(context),
     );
   }
 
@@ -217,7 +234,7 @@ class FarmerDashboard extends StatelessWidget {
     );
   }
 
-  Widget _buildBottomNavigationBar() {
+  Widget _buildBottomNavigationBar(BuildContext context) {
     return BottomNavigationBar(
       backgroundColor: const Color(0xFF1E1E1E),
       selectedItemColor: const Color(0xFF2196F3),
@@ -229,17 +246,30 @@ class FarmerDashboard extends StatelessWidget {
           label: 'Home',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.dashboard),
-          label: 'Dashboard',
+          icon: Icon(Icons.agriculture),
+          label: 'Farmer',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.person),
-          label: 'Profile',
+          icon: Icon(Icons.info_outline),
+          label: 'Info',
         ),
       ],
       currentIndex: 1,
       onTap: (index) {
-        // Handle navigation
+        switch (index) {
+          case 0:
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+              (route) => false,
+            );
+            break;
+          case 1:
+            // Stay on dashboard
+            break;
+          case 2:
+            // Info (not implemented)
+            break;
+        }
       },
     );
   }
