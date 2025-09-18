@@ -106,4 +106,32 @@ class MockDataService {
   static String getSeasonalForecast() {
     return 'Based on our ML models, groundwater levels are expected to remain stable this season. Recharge rates are projected to match depletion, ensuring a consistent water supply for your agricultural needs.';
   }
+
+  // Location-aware variants (mocked heuristics)
+  static String getSoilCompatibilityFor({required double latitude, required double longitude}) {
+    final latEven = latitude.abs().floor() % 2 == 0;
+    final lngEven = longitude.abs().floor() % 2 == 0;
+    if (latEven && lngEven) {
+      return 'Loam-dominant soil with good silt compatibility. Recommended: drip irrigation and mulching.';
+    } else if (latEven && !lngEven) {
+      return 'Sandy-loam mix; moderate silt compatibility. Recommended: shorter watering intervals and organic compost.';
+    } else if (!latEven && lngEven) {
+      return 'Clay-rich soil; high silt compatibility but risk of waterlogging. Recommended: raised beds and controlled irrigation.';
+    } else {
+      return 'Alluvial soil; balanced silt compatibility. Recommended: sprinkler systems and periodic soil aeration.';
+    }
+  }
+
+  static String getSeasonalForecastFor({required double latitude, required double longitude}) {
+    final latBand = latitude.abs();
+    if (latBand < 10) {
+      return 'Equatorial band: Expect frequent short showers; groundwater recharge moderate. Plan for staggered irrigation windows.';
+    } else if (latBand < 23.5) {
+      return 'Tropical band: Monsoon likelihood high this season; recharge above average. Consider rainwater harvesting.';
+    } else if (latBand < 35) {
+      return 'Subtropical band: Intermittent rainfall expected; stable to slight decline in groundwater. Optimize irrigation schedules.';
+    } else {
+      return 'Temperate band: Low precipitation periods likely; recharge below average. Prioritize efficient water use.';
+    }
+  }
 }

@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../services/waterways_service.dart';
 import '../services/app_state.dart';
+import 'feedback_screen.dart';
 
 class WaterMapScreen extends StatefulWidget {
   const WaterMapScreen({super.key});
@@ -216,6 +217,22 @@ class _WaterMapScreenState extends State<WaterMapScreen> {
               PopupMenuItem(value: 2000, child: Text('Radius: 2 km')),
               PopupMenuItem(value: 5000, child: Text('Radius: 5 km')),
               PopupMenuItem(value: 10000, child: Text('Radius: 10 km')),
+            ],
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'feedback') {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const FeedbackScreen()),
+                );
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'feedback',
+                child: Text('Report & Feedback'),
+              ),
             ],
           ),
         ],

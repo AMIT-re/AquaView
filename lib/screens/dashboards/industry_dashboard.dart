@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/mock_data.dart';
 import '../welcome_screen.dart';
+import '../feedback_screen.dart';
 
 class IndustryDashboard extends StatelessWidget {
   const IndustryDashboard({super.key});
@@ -41,6 +42,24 @@ class IndustryDashboard extends StatelessWidget {
           ),
         ),
         title: const Text('Industry Dashboard'),
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'feedback') {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const FeedbackScreen()),
+                );
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'feedback',
+                child: Text('Report & Feedback'),
+              ),
+            ],
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),

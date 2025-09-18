@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../services/mock_data.dart';
 import '../../services/dwlr_service.dart';
 import '../welcome_screen.dart';
+import '../feedback_screen.dart';
 
 class CitizenDashboard extends StatefulWidget {
   const CitizenDashboard({super.key});
@@ -21,6 +22,9 @@ class _CitizenDashboardState extends State<CitizenDashboard> {
   String? _locationError;
   DwlrReading? _dwlr;
   Stream<Position>? _positionStream;
+  double? _latitude;
+  double? _longitude;
+  bool _locating = false;
 
   @override
   void initState() {
@@ -117,6 +121,207 @@ class _CitizenDashboardState extends State<CitizenDashboard> {
     });
   }
 
+  Future<void> _useCurrentLocation() async {
+    setState(() => _locating = true);
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        await Geolocator.openLocationSettings();
+        serviceEnabled = await Geolocator.isLocationServiceEnabled();
+        if (!serviceEnabled) {
+          setState(() => _locating = false);
+          return;
+        }
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          setState(() => _locating = false);
+          return;
+        }
+      }
+      if (permission == LocationPermission.deniedForever) {
+        setState(() => _locating = false);
+        return;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.best);
+      if (!mounted) return;
+      setState(() {
+        _position = pos;
+        _latitude = pos.latitude;
+        _longitude = pos.longitude;
+        _locating = false;
+      });
+      _loadDwlr();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _locating = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not get location: $e')),
+      );
+    }
+  }
+
+  Future<void> _promptChangeLocation() async {
+    final initialCenter = (_latitude != null && _longitude != null)
+        ? LatLng(_latitude!, _longitude!)
+        : const LatLng(20.5937, 78.9629);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF1E1E1E),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        LatLng? selected;
+        bool fetchingLocal = false;
+        final mapController = MapController();
+        return StatefulBuilder(
+          builder: (context, setLocalState) {
+            return SafeArea(
+              top: false,
+              child: Padding(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom,
+                ),
+                child: SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.7,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                        child: Text('Select Location', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.white)),
+                      ),
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                          child: FlutterMap(
+                            mapController: mapController,
+                            options: MapOptions(
+                              initialCenter: initialCenter,
+                              initialZoom: 5,
+                              onTap: (tapPosition, point) {
+                                setLocalState(() {
+                                  selected = point;
+                                });
+                              },
+                            ),
+                            children: [
+                              TileLayer(
+                                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                userAgentPackageName: 'com.example.aquaview',
+                                tileProvider: NetworkTileProvider(),
+                              ),
+                              if (selected != null)
+                                MarkerLayer(
+                                  markers: [
+                                    Marker(
+                                      point: selected!,
+                                      width: 40,
+                                      height: 40,
+                                      child: const Icon(Icons.location_on, color: Color(0xFF2196F3), size: 36),
+                                    ),
+                                  ],
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Row(
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: fetchingLocal
+                                  ? null
+                                  : () async {
+                                      setLocalState(() => fetchingLocal = true);
+                                      try {
+                                        bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+                                        if (!serviceEnabled) {
+                                          await Geolocator.openLocationSettings();
+                                          serviceEnabled = await Geolocator.isLocationServiceEnabled();
+                                          if (!serviceEnabled) {
+                                            setLocalState(() => fetchingLocal = false);
+                                            return;
+                                          }
+                                        }
+
+                                        LocationPermission permission = await Geolocator.checkPermission();
+                                        if (permission == LocationPermission.denied) {
+                                          permission = await Geolocator.requestPermission();
+                                          if (permission == LocationPermission.denied) {
+                                            setLocalState(() => fetchingLocal = false);
+                                            return;
+                                          }
+                                        }
+                                        if (permission == LocationPermission.deniedForever) {
+                                          setLocalState(() => fetchingLocal = false);
+                                          return;
+                                        }
+
+                                        final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.best);
+                                        final here = LatLng(pos.latitude, pos.longitude);
+                                        setLocalState(() {
+                                          selected = here;
+                                          fetchingLocal = false;
+                                        });
+                                        mapController.move(here, 13);
+                                      } catch (e) {
+                                        setLocalState(() => fetchingLocal = false);
+                                        if (mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text('Could not get location: $e')),
+                                          );
+                                        }
+                                      }
+                                    },
+                              icon: fetchingLocal
+                                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                  : const Icon(Icons.my_location, color: Color(0xFF2196F3)),
+                              label: const Text('Use my location', style: TextStyle(color: Color(0xFF2196F3))),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Color(0xFF2196F3)),
+                              ),
+                            ),
+                            const Spacer(),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Cancel'),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton(
+                              onPressed: selected == null
+                                  ? null
+                                  : () {
+                                      setState(() {
+                                        _latitude = selected!.latitude;
+                                        _longitude = selected!.longitude;
+                                      });
+                                      Navigator.pop(context);
+                                    },
+                              child: const Text('Confirm'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const waterQuality = MockDataService.getWaterQuality;
@@ -168,9 +373,20 @@ class _CitizenDashboardState extends State<CitizenDashboard> {
                 case 'refresh_location':
                   _initLocation();
                   break;
+                case 'use_current_location':
+                  _useCurrentLocation();
+                  break;
+                case 'change_location':
+                  _promptChangeLocation();
+                  break;
                 case 'report_issue':
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Issue reported. Thank you!')),
+                  );
+                  break;
+                case 'feedback':
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const FeedbackScreen()),
                   );
                   break;
               }
@@ -181,8 +397,20 @@ class _CitizenDashboardState extends State<CitizenDashboard> {
                 child: Text('Refresh location'),
               ),
               PopupMenuItem(
+                value: 'use_current_location',
+                child: Text('Use my location'),
+              ),
+              PopupMenuItem(
+                value: 'change_location',
+                child: Text('Change location...'),
+              ),
+              PopupMenuItem(
                 value: 'report_issue',
                 child: Text('Report issue'),
+              ),
+              PopupMenuItem(
+                value: 'feedback',
+                child: Text('Report & Feedback'),
               ),
             ],
           ),
@@ -194,6 +422,7 @@ class _CitizenDashboardState extends State<CitizenDashboard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ...existing code...
             // Water Quality Overview
             _buildSectionTitle('Water Quality Overview'),
             const SizedBox(height: 16),
@@ -275,12 +504,7 @@ class _CitizenDashboardState extends State<CitizenDashboard> {
             
             const SizedBox(height: 24),
             
-            // Water Source Map (current location)
-            _buildSectionTitle('Water Source Near You'),
-            const SizedBox(height: 16),
-            _buildMapCard(),
-
-            const SizedBox(height: 24),
+            // ...existing code...
 
             // Regional Water Hardness
             _buildSectionTitle('Regional Water Hardness'),
@@ -292,6 +516,86 @@ class _CitizenDashboardState extends State<CitizenDashboard> {
         ),
       ),
       bottomNavigationBar: _buildBottomNavigationBar(),
+    );
+  }
+
+  Widget _buildLocationCard() {
+    return Card(
+      color: const Color(0xFF1E1E1E),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _locating ? null : _useCurrentLocation,
+                  icon: _locating
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.my_location),
+                  label: const Text('Use my location'),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  onPressed: _promptChangeLocation,
+                  icon: const Icon(Icons.place, color: Color(0xFF2196F3)),
+                  label: const Text('Change location', style: TextStyle(color: Color(0xFF2196F3))),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF2196F3)),
+                  ),
+                ),
+                const Spacer(),
+                if (_latitude != null && _longitude != null)
+                  Text(
+                    '${_latitude!.toStringAsFixed(4)}, ${_longitude!.toStringAsFixed(4)}',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 160,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Builder(
+                  builder: (context) {
+                    final center = (_latitude != null && _longitude != null)
+                        ? LatLng(_latitude!, _longitude!)
+                        : const LatLng(20.5937, 78.9629);
+                    final zoom = (_latitude != null && _longitude != null) ? 12.0 : 4.0;
+                    return FlutterMap(
+                      key: ValueKey('${center.latitude.toStringAsFixed(5)},${center.longitude.toStringAsFixed(5)}-$zoom'),
+                      options: MapOptions(
+                        initialCenter: center,
+                        initialZoom: zoom,
+                      ),
+                      children: [
+                        TileLayer(
+                          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          userAgentPackageName: 'com.example.aquaview',
+                          tileProvider: NetworkTileProvider(),
+                        ),
+                        if (_latitude != null && _longitude != null)
+                          MarkerLayer(
+                            markers: [
+                              Marker(
+                                point: center,
+                                width: 36,
+                                height: 36,
+                                child: const Icon(Icons.location_on, color: Color(0xFF2196F3), size: 32),
+                              ),
+                            ],
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
