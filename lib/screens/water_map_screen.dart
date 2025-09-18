@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../services/waterways_service.dart';
 import '../services/app_state.dart';
+import '../services/groundwater_service.dart';
 import 'feedback_screen.dart';
 
 class WaterMapScreen extends StatefulWidget {
@@ -51,11 +52,19 @@ class _WaterMapScreenState extends State<WaterMapScreen> {
   String? _error;
   WaterwaysResult? _data;
   int _radiusMeters = 5000;
+  Future<List<GroundwaterSite>>? _futureGroundwaterSites;
+  List<GroundwaterSite> _groundwaterSites = [];
 
   @override
   void initState() {
     super.initState();
     unawaited(_init());
+    _futureGroundwaterSites = GroundwaterService.fetchSites();
+    _futureGroundwaterSites!.then((sites) {
+      if (mounted) setState(() => _groundwaterSites = sites);
+    }).catchError((e) {
+      // Optionally handle error
+    });
   }
 
   Future<void> _init() async {
@@ -188,6 +197,18 @@ class _WaterMapScreenState extends State<WaterMapScreen> {
     return markers;
   }
 
+  List<Marker> _buildGroundwaterMarkers() {
+    return _groundwaterSites.map((site) => Marker(
+      width: 44,
+      height: 44,
+      point: LatLng(site.lat, site.lon),
+      child: Tooltip(
+        message: '${site.siteName} (${site.type})',
+        child: const Icon(Icons.water_drop, color: Colors.blueAccent, size: 28),
+      ),
+    )).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
   // final appState = context.watch<AppState>();
@@ -279,7 +300,10 @@ class _WaterMapScreenState extends State<WaterMapScreen> {
                 if ((_data?.waterways.isNotEmpty ?? false))
                   PolylineLayer(polylines: _buildWaterwayPolylines()),
                 if ((_data?.sources.isNotEmpty ?? false) || _currentCenter != null)
-                  MarkerLayer(markers: _buildSourceMarkers()),
+                  MarkerLayer(markers: [
+                    ..._buildSourceMarkers(),
+                    ..._buildGroundwaterMarkers(),
+                  ]),
               ],
             ),
           if (_loading)

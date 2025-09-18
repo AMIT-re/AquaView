@@ -15,6 +15,61 @@ class FarmerDashboard extends StatefulWidget {
 }
 
 class _FarmerDashboardState extends State<FarmerDashboard> {
+  String? _selectedState;
+  String? _selectedDistrict;
+
+  // Helper: get state center coordinates
+  LatLng? _getStateCenter(String? state) {
+    switch (state) {
+      case 'Uttar Pradesh':
+        return const LatLng(27.0, 80.0);
+      case 'Maharashtra':
+        return const LatLng(19.7515, 75.7139);
+      case 'Bihar':
+        return const LatLng(25.0961, 85.3131);
+      case 'West Bengal':
+        return const LatLng(22.9868, 87.8550);
+      case 'Madhya Pradesh':
+        return const LatLng(22.9734, 78.6569);
+      case 'Tamil Nadu':
+        return const LatLng(11.1271, 78.6569);
+      case 'Rajasthan':
+        return const LatLng(27.0238, 74.2179);
+      case 'Karnataka':
+        return const LatLng(15.3173, 75.7139);
+      case 'Gujarat':
+        return const LatLng(22.2587, 71.1924);
+      case 'Andhra Pradesh':
+        return const LatLng(15.9129, 79.7400);
+      default:
+        return null;
+    }
+  }
+
+  // Helper: get district center coordinates
+  LatLng? _getDistrictCenter(String? state, String? district) {
+    if (state == 'Uttar Pradesh') {
+      switch (district) {
+        case 'Gautam Buddha Nagar':
+          return const LatLng(28.4744, 77.5040);
+        case 'Lucknow':
+          return const LatLng(26.8467, 80.9462);
+        case 'Varanasi':
+          return const LatLng(25.3176, 82.9739);
+      }
+    } else if (state == 'Maharashtra') {
+      switch (district) {
+        case 'Mumbai':
+          return const LatLng(19.0760, 72.8777);
+        case 'Pune':
+          return const LatLng(18.5204, 73.8567);
+        case 'Nagpur':
+          return const LatLng(21.1458, 79.0882);
+      }
+    }
+    // Add more as needed
+    return null;
+  }
   double? _latitude;
   double? _longitude;
   bool _locating = false;
@@ -373,6 +428,21 @@ class _FarmerDashboardState extends State<FarmerDashboard> {
   }
 
   Widget _buildLocationCard() {
+    // State and district dropdowns for auto-zoom
+    final List<String> states = [
+      'Uttar Pradesh', 'Maharashtra', 'Bihar', 'West Bengal', 'Madhya Pradesh',
+      'Tamil Nadu', 'Rajasthan', 'Karnataka', 'Gujarat', 'Andhra Pradesh',
+      // ... add more as needed
+    ];
+    final Map<String, List<String>> districtsByState = {
+      'Uttar Pradesh': ['Gautam Buddha Nagar', 'Lucknow', 'Varanasi'],
+      'Maharashtra': ['Mumbai', 'Pune', 'Nagpur'],
+      // ... add more as needed
+    };
+    String? selectedState = _selectedState;
+    String? selectedDistrict = _selectedDistrict;
+    final mapController = MapController();
+
     return Card(
       color: const Color(0xFF1E1E1E),
       child: Padding(
@@ -407,6 +477,59 @@ class _FarmerDashboardState extends State<FarmerDashboard> {
               ],
             ),
             const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButton<String>(
+                    value: selectedState,
+                    hint: const Text('Select State', style: TextStyle(color: Colors.white70)),
+                    dropdownColor: const Color(0xFF1E1E1E),
+                    isExpanded: true,
+                    items: states.map((s) => DropdownMenuItem(
+                      value: s,
+                      child: Text(s, style: const TextStyle(color: Colors.white)),
+                    )).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedState = value;
+                        _selectedDistrict = null;
+                        // Optionally auto-zoom to state center
+                        final center = _getStateCenter(value);
+                        if (center != null) {
+                          mapController.move(center, 7);
+                        }
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButton<String>(
+                    value: selectedDistrict,
+                    hint: const Text('Select District', style: TextStyle(color: Colors.white70)),
+                    dropdownColor: const Color(0xFF1E1E1E),
+                    isExpanded: true,
+                    items: (selectedState != null && districtsByState[selectedState] != null)
+                        ? districtsByState[selectedState]!.map((d) => DropdownMenuItem(
+                              value: d,
+                              child: Text(d, style: const TextStyle(color: Colors.white)),
+                            )).toList()
+                        : [],
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedDistrict = value;
+                        // Optionally auto-zoom to district center
+                        final center = _getDistrictCenter(selectedState, value);
+                        if (center != null) {
+                          mapController.move(center, 11);
+                        }
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             SizedBox(
               height: 160,
               child: ClipRRect(
@@ -418,6 +541,7 @@ class _FarmerDashboardState extends State<FarmerDashboard> {
                         : const LatLng(20.5937, 78.9629);
                     final zoom = (_latitude != null && _longitude != null) ? 12.0 : 4.0;
                     return FlutterMap(
+                      mapController: mapController,
                       key: ValueKey('${center.latitude.toStringAsFixed(5)},${center.longitude.toStringAsFixed(5)}-$zoom'),
                       options: MapOptions(
                         initialCenter: center,

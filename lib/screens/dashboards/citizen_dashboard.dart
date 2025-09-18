@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import '../widgets/location_search_sheet.dart';
 import '../../services/mock_data.dart';
 import '../../services/dwlr_service.dart';
 import '../welcome_screen.dart';
@@ -18,6 +19,60 @@ class CitizenDashboard extends StatefulWidget {
 }
 
 class _CitizenDashboardState extends State<CitizenDashboard> {
+  String? _selectedState;
+  String? _selectedDistrict;
+  // Helper: get state center coordinates
+  LatLng? _getStateCenter(String? state) {
+    switch (state) {
+      case 'Uttar Pradesh':
+        return const LatLng(27.0, 80.0);
+      case 'Maharashtra':
+        return const LatLng(19.7515, 75.7139);
+      case 'Bihar':
+        return const LatLng(25.0961, 85.3131);
+      case 'West Bengal':
+        return const LatLng(22.9868, 87.8550);
+      case 'Madhya Pradesh':
+        return const LatLng(22.9734, 78.6569);
+      case 'Tamil Nadu':
+        return const LatLng(11.1271, 78.6569);
+      case 'Rajasthan':
+        return const LatLng(27.0238, 74.2179);
+      case 'Karnataka':
+        return const LatLng(15.3173, 75.7139);
+      case 'Gujarat':
+        return const LatLng(22.2587, 71.1924);
+      case 'Andhra Pradesh':
+        return const LatLng(15.9129, 79.7400);
+      default:
+        return null;
+    }
+  }
+
+  // Helper: get district center coordinates
+  LatLng? _getDistrictCenter(String? state, String? district) {
+    if (state == 'Uttar Pradesh') {
+      switch (district) {
+        case 'Gautam Buddha Nagar':
+          return const LatLng(28.4744, 77.5040);
+        case 'Lucknow':
+          return const LatLng(26.8467, 80.9462);
+        case 'Varanasi':
+          return const LatLng(25.3176, 82.9739);
+      }
+    } else if (state == 'Maharashtra') {
+      switch (district) {
+        case 'Mumbai':
+          return const LatLng(19.0760, 72.8777);
+        case 'Pune':
+          return const LatLng(18.5204, 73.8567);
+        case 'Nagpur':
+          return const LatLng(21.1458, 79.0882);
+      }
+    }
+    // Add more as needed
+    return null;
+  }
   Position? _position;
   String? _locationError;
   DwlrReading? _dwlr;
@@ -170,7 +225,7 @@ class _CitizenDashboardState extends State<CitizenDashboard> {
         ? LatLng(_latitude!, _longitude!)
         : const LatLng(20.5937, 78.9629);
 
-    await showModalBottomSheet<void>(
+  await showModalBottomSheet<void>(
       context: context,
       backgroundColor: const Color(0xFF1E1E1E),
       isScrollControlled: true,
@@ -197,6 +252,38 @@ class _CitizenDashboardState extends State<CitizenDashboard> {
                       const Padding(
                         padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
                         child: Text('Select Location', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.white)),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                        child: Row(
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: () async {
+                                await showModalBottomSheet<void>(
+                                  context: context,
+                                  backgroundColor: const Color(0xFF1E1E1E),
+                                  shape: const RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                                  ),
+                                  builder: (_) => LocationSearchSheet(
+                                    onPicked: (name, pos) {
+                                      setLocalState(() {
+                                        selected = pos;
+                                      });
+                                      mapController.move(pos, 13);
+                                    },
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.search, color: Color(0xFF2196F3)),
+                              label: const Text('Search place', style: TextStyle(color: Color(0xFF2196F3))),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Color(0xFF2196F3)),
+                              ),
+                            ),
+                            const Spacer(),
+                          ],
+                        ),
                       ),
                       Expanded(
                         child: ClipRRect(
@@ -303,7 +390,20 @@ class _CitizenDashboardState extends State<CitizenDashboard> {
                                       setState(() {
                                         _latitude = selected!.latitude;
                                         _longitude = selected!.longitude;
+                                        _position = Position(
+                                          latitude: selected!.latitude,
+                                          longitude: selected!.longitude,
+                                          timestamp: DateTime.now(),
+                                          accuracy: 0.0,
+                                          altitude: 0.0,
+                                          heading: 0.0,
+                                          speed: 0.0,
+                                          speedAccuracy: 0.0,
+                                          altitudeAccuracy: 0.0,
+                                          headingAccuracy: 0.0,
+                                        );
                                       });
+                                      _loadDwlr();
                                       Navigator.pop(context);
                                     },
                               child: const Text('Confirm'),
@@ -320,14 +420,13 @@ class _CitizenDashboardState extends State<CitizenDashboard> {
         );
       },
     );
+
   }
 
   @override
   Widget build(BuildContext context) {
-    const waterQuality = MockDataService.getWaterQuality;
-    const waterLevel = MockDataService.getWaterLevel;
+    final waterQuality = MockDataService.getWaterQuality;
     final alerts = MockDataService.getCitizenAlerts();
-    final waterSource = MockDataService.getWaterSource();
 
     return Scaffold(
       drawer: Drawer(
@@ -422,7 +521,10 @@ class _CitizenDashboardState extends State<CitizenDashboard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ...existing code...
+            _buildSectionTitle('Location'),
+            const SizedBox(height: 16),
+            _buildLocationCard(),
+            const SizedBox(height: 24),
             // Water Quality Overview
             _buildSectionTitle('Water Quality Overview'),
             const SizedBox(height: 16),
@@ -446,21 +548,11 @@ class _CitizenDashboardState extends State<CitizenDashboard> {
                 ),
               ),
             const SizedBox(height: 24),
-            
             // Alerts
             _buildSectionTitle('Alerts'),
             const SizedBox(height: 16),
             _buildAlertsCard(alerts),
-            
             const SizedBox(height: 24),
-            
-            // Water Level
-            _buildSectionTitle('Water Level'),
-            const SizedBox(height: 16),
-            if (_dwlr == null && _position != null)
-              const Center(child: CircularProgressIndicator()),
-            if (_dwlr == null && _position == null)
-              const Center(child: Text('Waiting for location...', style: TextStyle(color: Colors.white70))),
             if (_dwlr == null && _locationError != null)
               Center(child: Text(_locationError!, style: const TextStyle(color: Colors.red))),
             if (_dwlr != null)
@@ -520,6 +612,21 @@ class _CitizenDashboardState extends State<CitizenDashboard> {
   }
 
   Widget _buildLocationCard() {
+    // State and district dropdowns for auto-zoom
+    final List<String> states = [
+      'Uttar Pradesh', 'Maharashtra', 'Bihar', 'West Bengal', 'Madhya Pradesh',
+      'Tamil Nadu', 'Rajasthan', 'Karnataka', 'Gujarat', 'Andhra Pradesh',
+      // ... add more as needed
+    ];
+    final Map<String, List<String>> districtsByState = {
+      'Uttar Pradesh': ['Gautam Buddha Nagar', 'Lucknow', 'Varanasi'],
+      'Maharashtra': ['Mumbai', 'Pune', 'Nagpur'],
+      // ... add more as needed
+    };
+    String? selectedState = _selectedState;
+    String? selectedDistrict = _selectedDistrict;
+    final mapController = MapController();
+
     return Card(
       color: const Color(0xFF1E1E1E),
       child: Padding(
@@ -554,6 +661,59 @@ class _CitizenDashboardState extends State<CitizenDashboard> {
               ],
             ),
             const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButton<String>(
+                    value: selectedState,
+                    hint: const Text('Select State', style: TextStyle(color: Colors.white70)),
+                    dropdownColor: const Color(0xFF1E1E1E),
+                    isExpanded: true,
+                    items: states.map((s) => DropdownMenuItem(
+                      value: s,
+                      child: Text(s, style: const TextStyle(color: Colors.white)),
+                    )).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedState = value;
+                        _selectedDistrict = null;
+                        // Optionally auto-zoom to state center
+                        final center = _getStateCenter(value);
+                        if (center != null) {
+                          mapController.move(center, 7);
+                        }
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButton<String>(
+                    value: selectedDistrict,
+                    hint: const Text('Select District', style: TextStyle(color: Colors.white70)),
+                    dropdownColor: const Color(0xFF1E1E1E),
+                    isExpanded: true,
+                    items: (selectedState != null && districtsByState[selectedState] != null)
+                        ? districtsByState[selectedState]!.map((d) => DropdownMenuItem(
+                              value: d,
+                              child: Text(d, style: const TextStyle(color: Colors.white)),
+                            )).toList()
+                        : [],
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedDistrict = value;
+                        // Optionally auto-zoom to district center
+                        final center = _getDistrictCenter(selectedState, value);
+                        if (center != null) {
+                          mapController.move(center, 11);
+                        }
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             SizedBox(
               height: 160,
               child: ClipRRect(
@@ -565,6 +725,7 @@ class _CitizenDashboardState extends State<CitizenDashboard> {
                         : const LatLng(20.5937, 78.9629);
                     final zoom = (_latitude != null && _longitude != null) ? 12.0 : 4.0;
                     return FlutterMap(
+                      mapController: mapController,
                       key: ValueKey('${center.latitude.toStringAsFixed(5)},${center.longitude.toStringAsFixed(5)}-$zoom'),
                       options: MapOptions(
                         initialCenter: center,
