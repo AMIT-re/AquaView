@@ -3,6 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../services/mock_data.dart';
+import '../widgets/water_level_trend_chart.dart';
 import '../welcome_screen.dart';
 import '../feedback_screen.dart';
 import '../widgets/location_search_sheet.dart';
@@ -15,6 +16,13 @@ class FarmerDashboard extends StatefulWidget {
 }
 
 class _FarmerDashboardState extends State<FarmerDashboard> {
+  // Drought threshold for demo (meters)
+  final double droughtThreshold = 11.0;
+
+  bool get _isDrought {
+    final levels = MockDataService.getWaterLevel.historicalData;
+    return levels.isNotEmpty && levels.last < droughtThreshold;
+  }
   String? _selectedState;
   String? _selectedDistrict;
 
@@ -414,6 +422,35 @@ class _FarmerDashboardState extends State<FarmerDashboard> {
             _buildSectionTitle('Soil-Silt Compatibility'),
             const SizedBox(height: 16),
             _buildSoilCompatibilityCard(_soilCompatibilityText),
+            const SizedBox(height: 24),
+            // Drought Alert
+            if (_isDrought)
+              Card(
+                color: Colors.red.shade900,
+                margin: const EdgeInsets.only(bottom: 16),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.warning, color: Colors.yellow, size: 32),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Text(
+                          'Drought Alert: Groundwater levels are critically low! Immediate water conservation is advised.',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            // Water Level Trend Graph
+            _buildSectionTitle('Water Level Trend'),
+            const SizedBox(height: 16),
+            WaterLevelTrendChart(
+              historicalData: MockDataService.getWaterLevel.historicalData,
+              droughtThreshold: droughtThreshold,
+            ),
             const SizedBox(height: 24),
             // Water Quality Reports
             _buildSectionTitle('Water Quality Reports'),
