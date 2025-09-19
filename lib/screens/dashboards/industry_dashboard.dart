@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../welcome_screen.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../services/mock_data.dart';
+import '../../services/geocoding_service.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class IndustryDashboard extends StatefulWidget {
   const IndustryDashboard({Key? key}) : super(key: key);
@@ -11,6 +14,11 @@ class IndustryDashboard extends StatefulWidget {
 }
 
 class _IndustryDashboardState extends State<IndustryDashboard> {
+  LatLng? _selectedLocation;
+  String? _selectedLocationName;
+  bool _isLocating = false;
+  String? _locationError;
+  final TextEditingController _locationController = TextEditingController();
   final List<String> sectors = [
     'All Sectors',
     'Textile',
@@ -30,12 +38,103 @@ class _IndustryDashboardState extends State<IndustryDashboard> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Industry Dashboard'),
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (value) async {
+              switch (value) {
+                case 'sos':
+                  _callMinistryOfJalShakti();
+                  break;
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem<String>(
+                value: 'sos',
+                child: Text('Call Ministry of Jal Shakti'),
+              ),
+            ],
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Location input field
+            Row(
+              children: [
+                const Text('Location:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Stack(
+                    alignment: Alignment.centerRight,
+                    children: [
+                      TextField(
+                        controller: _locationController,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: 'Enter place name',
+                          hintStyle: const TextStyle(color: Colors.white54),
+                          filled: true,
+                          fillColor: const Color(0xFF222222),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                        onSubmitted: (val) async {
+                          setState(() {
+                            _isLocating = true;
+                            _locationError = null;
+                          });
+                          try {
+                            final results = await GeocodingService.search(val);
+                            if (results.isNotEmpty) {
+                              setState(() {
+                                _selectedLocation = results.first.position;
+                                _selectedLocationName = results.first.displayName;
+                                _isLocating = false;
+                              });
+                            } else {
+                              setState(() {
+                                _locationError = 'Location not found.';
+                                _isLocating = false;
+                              });
+                            }
+                          } catch (e) {
+                            setState(() {
+                              _locationError = 'Error locating place.';
+                              _isLocating = false;
+                            });
+                          }
+                        },
+                      ),
+                      if (_isLocating)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 12),
+                          child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (_selectedLocationName != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6, left: 4),
+                child: Text(
+                  'Located: $_selectedLocationName',
+                  style: const TextStyle(color: Colors.greenAccent, fontSize: 13),
+                ),
+              ),
+            if (_locationError != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6, left: 4),
+                child: Text(
+                  _locationError!,
+                  style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+                ),
+              ),
+            const SizedBox(height: 20),
             Row(
               children: [
                 const Text('Select Sector:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -109,16 +208,39 @@ class _IndustryDashboardState extends State<IndustryDashboard> {
   };
 
   Widget _buildGroundwaterUsageChart() {
-    // Dynamic data for selected sector
+    // Use mock location-based data if available
+    double agriculture = 60.0;
+    double domestic = 20.0;
     double sectorVal = 0;
+    if (_selectedLocation != null) {
+      // Example: change values based on latitude/longitude bands (mock logic)
+      final lat = _selectedLocation!.latitude;
+      if (lat < 10) {
+        agriculture = 50.0;
+        domestic = 25.0;
+      } else if (lat < 23.5) {
+        agriculture = 65.0;
+        domestic = 15.0;
+      } else if (lat < 35) {
+        agriculture = 55.0;
+        domestic = 25.0;
+      } else {
+        agriculture = 70.0;
+        domestic = 10.0;
+      }
+    }
     if (selectedSector == 'All Sectors') {
       sectorVal = sectorUsage.values.reduce((a, b) => a + b);
     } else if (sectorUsage.containsKey(selectedSector)) {
       sectorVal = sectorUsage[selectedSector]!;
     }
+    // Optionally, tweak sectorVal based on location (mock)
+    if (_selectedLocation != null) {
+      sectorVal = (sectorVal * (0.9 + (_selectedLocation!.latitude % 0.2))).clamp(1, 100);
+    }
     final data = [
-      {'sector': 'Agriculture', 'usage': 60.0},
-      {'sector': 'Domestic', 'usage': 20.0},
+      {'sector': 'Agriculture', 'usage': agriculture},
+      {'sector': 'Domestic', 'usage': domestic},
       {'sector': selectedSector, 'usage': sectorVal},
     ];
     final barGroups = List.generate(data.length, (i) {
@@ -336,5 +458,12 @@ class _IndustryDashboardState extends State<IndustryDashboard> {
         }
       },
     );
+  }
+
+  Future<void> _callMinistryOfJalShakti() async {
+    final uri = Uri(scheme: 'tel', path: '01123766369');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
   }
 }

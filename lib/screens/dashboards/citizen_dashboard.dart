@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:url_launcher/url_launcher.dart';
 import '../widgets/location_search_sheet.dart';
 import '../../services/mock_data.dart';
 import '../../services/dwlr_service.dart';
@@ -488,6 +489,9 @@ class _CitizenDashboardState extends State<CitizenDashboard> {
                     MaterialPageRoute(builder: (_) => const FeedbackScreen()),
                   );
                   break;
+                case 'sos':
+                  _callMinistryOfJalShakti();
+                  break;
               }
             },
             itemBuilder: (context) => const [
@@ -510,6 +514,10 @@ class _CitizenDashboardState extends State<CitizenDashboard> {
               PopupMenuItem(
                 value: 'feedback',
                 child: Text('Report & Feedback'),
+              ),
+              PopupMenuItem(
+                value: 'sos',
+                child: Text('Call Ministry of Jal Shakti'),
               ),
             ],
           ),
@@ -596,8 +604,6 @@ class _CitizenDashboardState extends State<CitizenDashboard> {
             
             const SizedBox(height: 24),
             
-            // ...existing code...
-
             // Regional Water Hardness
             _buildSectionTitle('Regional Water Hardness'),
             const SizedBox(height: 16),
@@ -1228,6 +1234,13 @@ class _CitizenDashboardState extends State<CitizenDashboard> {
         }
       },
     );
+  }
+
+  Future<void> _callMinistryOfJalShakti() async {
+    final uri = Uri(scheme: 'tel', path: '01123766369');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
   }
 }
 

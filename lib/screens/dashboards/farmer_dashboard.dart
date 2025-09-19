@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../services/mock_data.dart';
+import '../../services/soil_api_service.dart';
 import '../widgets/water_level_trend_chart.dart';
 import '../welcome_screen.dart';
 import '../feedback_screen.dart';
@@ -16,12 +18,49 @@ class FarmerDashboard extends StatefulWidget {
 }
 
 class _FarmerDashboardState extends State<FarmerDashboard> {
+  Widget _buildSoilQualityCard(SoilQuality sq) {
+    return Card(
+      color: const Color(0xFF2E7D32),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('${sq.region} (${sq.soilType})', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16)),
+            const SizedBox(height: 8),
+            Text('Soil Quality: ${sq.quality}', style: const TextStyle(color: Colors.white)),
+            Text('pH: ${sq.ph.toStringAsFixed(1)}', style: const TextStyle(color: Colors.white)),
+            Text('Organic Carbon: ${sq.organicCarbon}', style: const TextStyle(color: Colors.white)),
+            const SizedBox(height: 8),
+            Text('Suitable Crops:', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            Wrap(
+              spacing: 8,
+              children: sq.suitableCrops.map((crop) => Chip(label: Text(crop), backgroundColor: Colors.white24, labelStyle: const TextStyle(color: Colors.white))).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  SoilQuality? _soilQuality;
+  bool _soilLoading = false;
+  String? _soilError;
+  // (removed duplicate declarations)
   // Drought threshold for demo (meters)
   final double droughtThreshold = 11.0;
 
   bool get _isDrought {
-    final levels = MockDataService.getWaterLevel.historicalData;
-    return levels.isNotEmpty && levels.last < droughtThreshold;
+    // Simulate location-based water level for demo
+    double lastLevel = MockDataService.getWaterLevel.historicalData.last;
+    if (_latitude != null && _longitude != null) {
+      // Simple mock: lower water level for some locations
+      final lat = _latitude!.abs();
+      final lng = _longitude!.abs();
+      if ((lat + lng) % 3 < 1.5) {
+        lastLevel -= 2.5; // simulate drought for some locations
+      }
+    }
+    return lastLevel < droughtThreshold;
   }
   String? _selectedState;
   String? _selectedDistrict;
@@ -128,7 +167,24 @@ class _FarmerDashboardState extends State<FarmerDashboard> {
         _latitude = pos.latitude;
         _longitude = pos.longitude;
         _locating = false;
+        _soilQuality = null;
+        _soilError = null;
+        _soilLoading = true;
       });
+      try {
+        final sq = await SoilApiService.getSoilQualityForLocation(LatLng(_latitude!, _longitude!));
+        if (!mounted) return;
+        setState(() {
+          _soilQuality = sq;
+          _soilLoading = false;
+        });
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _soilError = 'Failed to fetch soil data.';
+          _soilLoading = false;
+        });
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _locating = false);
@@ -309,11 +365,30 @@ class _FarmerDashboardState extends State<FarmerDashboard> {
                             ElevatedButton(
                               onPressed: selected == null
                                   ? null
-                                  : () {
+                                  : () async {
                                       setState(() {
                                         _latitude = selected!.latitude;
                                         _longitude = selected!.longitude;
+                                        _soilQuality = null;
+                                        _soilError = null;
+                                        _soilLoading = true;
                                       });
+                                      try {
+                                        final sq = await SoilApiService.getSoilQualityForLocation(selected!);
+                                        if (!mounted) return;
+                                        setState(() {
+                                          _soilQuality = sq;
+                                          _soilLoading = false;
+                                        });
+                                        _showDroughtAlertIfNeeded();
+                                      } catch (e) {
+                                        if (!mounted) return;
+                                        setState(() {
+                                          _soilError = 'Failed to fetch soil data.';
+                                          _soilLoading = false;
+                                        });
+                                        _showDroughtAlertIfNeeded();
+                                      }
                                       Navigator.pop(context);
                                     },
                               child: const Text('Confirm'),
@@ -332,9 +407,44 @@ class _FarmerDashboardState extends State<FarmerDashboard> {
     );
   }
 
+  // Drought alert system
+  void _showDroughtAlertIfNeeded() {
+    if (_isDrought) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Drought Alert: Groundwater levels are critically low for this location!'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+      });
+    }
+  }
+
+  double get _simulatedWaterLevel {
+    double lastLevel = MockDataService.getWaterLevel.historicalData.last;
+    if (_latitude != null && _longitude != null) {
+      final lat = _latitude!.abs();
+      final lng = _longitude!.abs();
+      if ((lat + lng) % 3 < 1.5) {
+        lastLevel -= 2.5;
+      }
+    }
+    return lastLevel;
+  }
+
+  Future<void> _callMinistryOfJalShakti() async {
+    final uri = Uri(scheme: 'tel', path: '01123766369');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       drawer: Drawer(
         child: ListView(
@@ -354,109 +464,155 @@ class _FarmerDashboardState extends State<FarmerDashboard> {
                 );
               },
             ),
-          ],
-        ),
-      ),
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text('Farmer Dashboard'),
-        actions: [
-          if (_locating)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12.0),
-              child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-            ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert),
-            onSelected: (value) {
-              switch (value) {
-                case 'use_current_location':
-                  _useCurrentLocation();
-                  break;
-                case 'change_location':
-                  _promptChangeLocation();
-                  break;
-                case 'feedback':
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const FeedbackScreen()),
-                  );
-                  break;
-              }
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem(
-                value: 'use_current_location',
-                child: Text('Use my location'),
-              ),
-              PopupMenuItem(
-                value: 'change_location',
-                child: Text('Change location...'),
-              ),
-              PopupMenuItem(
-                value: 'feedback',
-                child: Text('Report & Feedback'),
-              ),
-            ],
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Location controls & preview
-            _buildSectionTitle('Location'),
-            const SizedBox(height: 16),
-            _buildLocationCard(),
-            const SizedBox(height: 24),
-            // Seasonal Forecast
-            _buildSectionTitle('Seasonal Forecast'),
-            const SizedBox(height: 16),
-            _buildSeasonalForecastCard(_seasonalForecastText),
-            const SizedBox(height: 24),
-            // Soil-Silt Compatibility
-            _buildSectionTitle('Soil-Silt Compatibility'),
-            const SizedBox(height: 16),
-            _buildSoilCompatibilityCard(_soilCompatibilityText),
-            const SizedBox(height: 24),
-            // Drought Alert
-            if (_isDrought)
-              Card(
-                color: Colors.red.shade900,
-                margin: const EdgeInsets.only(bottom: 16),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.warning, color: Colors.yellow, size: 32),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Text(
-                          'Drought Alert: Groundwater levels are critically low! Immediate water conservation is advised.',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
-                        ),
+                      const DrawerHeader(
+                        decoration: BoxDecoration(color: Color(0xFF2196F3)),
+                        child: Text('Menu', style: TextStyle(color: Colors.white, fontSize: 24)),
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.home),
+                        title: const Text('Home'),
+                        onTap: () {
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+                            (route) => false,
+                          );
+                        },
                       ),
                     ],
                   ),
                 ),
-              ),
-            // Water Level Trend Graph
-            _buildSectionTitle('Water Level Trend'),
-            const SizedBox(height: 16),
-            WaterLevelTrendChart(
-              historicalData: MockDataService.getWaterLevel.historicalData,
-              droughtThreshold: droughtThreshold,
-            ),
-            const SizedBox(height: 24),
-            // Water Quality Reports
-            _buildSectionTitle('Water Quality Reports'),
-            const SizedBox(height: 16),
-            _buildReportsCard(),
-            const SizedBox(height: 24),
+                appBar: AppBar(
+                  leading: IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  title: const Text('Farmer Dashboard'),
+                  actions: [
+                    if (_locating)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12.0),
+                        child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                      ),
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_vert),
+                      onSelected: (value) {
+                        switch (value) {
+                          case 'use_current_location':
+                            _useCurrentLocation();
+                            break;
+                          case 'change_location':
+                            _promptChangeLocation();
+                            break;
+                          case 'feedback':
+                            Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const FeedbackScreen()),
+                            );
+                            break;
+                          case 'sos':
+                            _callMinistryOfJalShakti();
+                            break;
+                        }
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: 'use_current_location',
+                          child: Text('Use my location'),
+                        ),
+                        PopupMenuItem(
+                          value: 'change_location',
+                          child: Text('Change location...'),
+                        ),
+                        PopupMenuItem(
+                          value: 'feedback',
+                          child: Text('Report & Feedback'),
+                        ),
+                        PopupMenuItem(
+                          value: 'sos',
+                          child: Text('Call Ministry of Jal Shakti'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                body: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Location controls & preview
+                      _buildSectionTitle('Location'),
+                      const SizedBox(height: 16),
+                      _buildLocationCard(),
+                      const SizedBox(height: 24),
+                      // Seasonal Forecast
+                      _buildSectionTitle('Seasonal Forecast'),
+                      const SizedBox(height: 16),
+                      _buildSeasonalForecastCard(_seasonalForecastText),
+                      const SizedBox(height: 24),
+                      // Soil Quality & Suitable Crops
+                      _buildSectionTitle('Soil Quality & Suitable Crops'),
+                      const SizedBox(height: 16),
+                      if (_soilLoading)
+                        const Center(child: CircularProgressIndicator()),
+                      if (_soilError != null)
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Text(_soilError!, style: TextStyle(color: Colors.red)),
+                        ),
+                      if (_soilQuality != null)
+                        _buildSoilQualityCard(_soilQuality!),
+                      if (!_soilLoading && _soilQuality == null)
+                        const Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: Text('Select a location to view soil quality and suitable crops.', style: TextStyle(color: Colors.white70)),
+                        ),
+                      const SizedBox(height: 24),
+                      // Soil-Silt Compatibility
+                      _buildSectionTitle('Soil-Silt Compatibility'),
+                      const SizedBox(height: 16),
+                      _buildSoilCompatibilityCard(_soilCompatibilityText),
+                      const SizedBox(height: 24),
+                      // Drought Alert
+                      if (_isDrought)
+                        Card(
+                          color: Colors.red.shade900,
+                          margin: const EdgeInsets.only(bottom: 16),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.warning, color: Colors.yellow, size: 32),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Text(
+                                    'Drought Alert: Groundwater levels are critically low! Immediate water conservation is advised.',
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8.0),
+                        child: Text(
+                          'Simulated Water Level: ${_simulatedWaterLevel.toStringAsFixed(2)} m',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      // Water Level Trend Graph
+                      _buildSectionTitle('Water Level Trend'),
+                      const SizedBox(height: 16),
+                      WaterLevelTrendChart(
+                        historicalData: MockDataService.getWaterLevel.historicalData,
+                        droughtThreshold: droughtThreshold,
+                      ),
+                      const SizedBox(height: 24),
+                      // Water Quality Reports
+                      _buildSectionTitle('Water Quality Reports'),
+                      const SizedBox(height: 16),
+                      _buildReportsCard(),
+                      const SizedBox(height: 24),
           ],
         ),
       ),
@@ -534,6 +690,24 @@ class _FarmerDashboardState extends State<FarmerDashboard> {
                         final center = _getStateCenter(value);
                         if (center != null) {
                           mapController.move(center, 7);
+                          _latitude = center.latitude;
+                          _longitude = center.longitude;
+                          _soilQuality = null;
+                          _soilError = null;
+                          _soilLoading = true;
+                          SoilApiService.getSoilQualityForLocation(center).then((sq) {
+                            if (mounted) setState(() {
+                              _soilQuality = sq;
+                              _soilLoading = false;
+                            });
+                            _showDroughtAlertIfNeeded();
+                          }).catchError((e) {
+                            if (mounted) setState(() {
+                              _soilError = 'Failed to fetch soil data.';
+                              _soilLoading = false;
+                            });
+                            _showDroughtAlertIfNeeded();
+                          });
                         }
                       });
                     },
@@ -559,6 +733,24 @@ class _FarmerDashboardState extends State<FarmerDashboard> {
                         final center = _getDistrictCenter(selectedState, value);
                         if (center != null) {
                           mapController.move(center, 11);
+                          _latitude = center.latitude;
+                          _longitude = center.longitude;
+                          _soilQuality = null;
+                          _soilError = null;
+                          _soilLoading = true;
+                          SoilApiService.getSoilQualityForLocation(center).then((sq) {
+                            if (mounted) setState(() {
+                              _soilQuality = sq;
+                              _soilLoading = false;
+                            });
+                            _showDroughtAlertIfNeeded();
+                          }).catchError((e) {
+                            if (mounted) setState(() {
+                              _soilError = 'Failed to fetch soil data.';
+                              _soilLoading = false;
+                            });
+                            _showDroughtAlertIfNeeded();
+                          });
                         }
                       });
                     },
